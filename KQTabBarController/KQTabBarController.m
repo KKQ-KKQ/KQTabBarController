@@ -21,14 +21,12 @@
     NSLayoutConstraint *tabBarHeightConstraint;
 }
 
-- (void)viewDidLoad {
-    [super viewDidLoad];
-    // Do any additional setup after loading the view.
-
+- (void)checkTabBar
+{
     if (@available(iOS 18, *)) {
         UITraitCollection *traitCollection = self.traitCollection;
         if (traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassRegular &&
-            traitCollection.verticalSizeClass == UIUserInterfaceSizeClassRegular)
+            traitCollection.verticalSizeClass == UIUserInterfaceSizeClassRegular && !alternateTabBar)
         {
             self.tabBarHidden = YES;
             UITabBar *tabBar = self.tabBar;
@@ -57,6 +55,19 @@
     }
 }
 
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection
+{
+    [super traitCollectionDidChange:previousTraitCollection];
+    [self checkTabBar];
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    // Do any additional setup after loading the view.
+
+    [self checkTabBar];
+}
+
 - (void)viewWillLayoutSubviews
 {
     [super viewWillLayoutSubviews];
@@ -82,15 +93,5 @@
         }
     }
 }
-
-/*
-#pragma mark - Navigation
-
-// In a storyboard-based application, you will often want to do a little preparation before navigation
-- (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
-    // Get the new view controller using [segue destinationViewController].
-    // Pass the selected object to the new view controller.
-}
-*/
 
 @end
