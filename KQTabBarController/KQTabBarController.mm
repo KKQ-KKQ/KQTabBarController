@@ -12,6 +12,17 @@
 #import "KQTabBarController.h"
 #import <atomic>
 
+#ifdef __IPHONE_18_0
+#define IS_ABOVE_IOS18 @available(iOS 18, *)
+#else
+#define IS_ABOVE_IOS18 0
+#endif
+#ifdef __IPHONE_26_0
+#define IS_ABOVE_IOS26 @available(iOS 26, *)
+#else
+#define IS_ABOVE_IOS26 0
+#endif
+
 @interface KQTabBarController ()
 
 @end
@@ -20,6 +31,7 @@
 {
     UITabBar *alternateTabBar;
     NSLayoutConstraint *tabBarHeightConstraint;
+    NSLayoutConstraint *tabBarBottomConstraint;
     std::atomic<bool> recursive;
 }
 
@@ -63,7 +75,7 @@ static void* observeContext = &observeContext;
 
 - (void)dealloc
 {
-    if (@available(iOS 26, *)) {
+    if (IS_ABOVE_IOS26) {
         if (alternateTabBar) {
             UITabBar *tabbar = self.tabBar;
             [tabbar removeObserver:self forKeyPath:@"selectedItem"];
@@ -74,10 +86,17 @@ static void* observeContext = &observeContext;
 
 - (void)checkTabBar
 {
-    if (@available(iOS 18, *)) {
+    if (IS_ABOVE_IOS18) {
         UITraitCollection *traitCollection = self.traitCollection;
-        if (traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassRegular &&
-            traitCollection.verticalSizeClass == UIUserInterfaceSizeClassRegular && !alternateTabBar)
+        BOOL isAbove26;
+        if (IS_ABOVE_IOS26) {
+            isAbove26 = YES;
+        }
+        else {
+            isAbove26 = NO;
+        }
+        if ((isAbove26 || (traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassRegular &&
+            traitCollection.verticalSizeClass == UIUserInterfaceSizeClassRegular)) && !alternateTabBar)
         {
             self.tabBarHidden = YES;
             UITabBar *tabBar = self.tabBar;
@@ -85,7 +104,7 @@ static void* observeContext = &observeContext;
             alternateTabBar = [[UITabBar alloc] init];
             alternateTabBar.items = tabBar.items;
             alternateTabBar.selectedItem = tabBar.selectedItem;
-            if (@available(iOS 26, *)) {
+            if (IS_ABOVE_IOS26) {
                 [tabBar addObserver:self forKeyPath:@"selectedItem" options:0 context:observeContext];
                 [alternateTabBar addObserver:self forKeyPath:@"selectedItem" options:0 context:observeContext];
             }
@@ -99,9 +118,10 @@ static void* observeContext = &observeContext;
 
             alternateTabBar.translatesAutoresizingMaskIntoConstraints = NO;
             tabBarHeightConstraint = [alternateTabBar.heightAnchor constraintEqualToConstant:1.];
+            tabBarBottomConstraint = [alternateTabBar.bottomAnchor constraintEqualToAnchor:view.bottomAnchor];
 
             [view addConstraints:@[
-                [alternateTabBar.bottomAnchor constraintEqualToAnchor:view.bottomAnchor],
+                tabBarBottomConstraint,
                 [alternateTabBar.leadingAnchor constraintEqualToAnchor:view.leadingAnchor],
                 [alternateTabBar.trailingAnchor constraintEqualToAnchor:view.trailingAnchor],
                 tabBarHeightConstraint,
@@ -114,7 +134,7 @@ static void* observeContext = &observeContext;
     [super viewDidLoad];
     // Do any additional setup after loading the view.
 
-    if (@available(iOS 18.0, *)) {
+    if (IS_ABOVE_IOS18) {
         [self checkTabBar];
 
         __weak KQTabBarController *weakSelf = self;
@@ -122,6 +142,13 @@ static void* observeContext = &observeContext;
             [weakSelf checkTabBar];
         }];
     }
+#if DEBUG
+    UIView *testView = [[UIView alloc] init];
+    testView.userInteractionEnabled = NO;
+    testView.alpha = 0.5;
+    testView.backgroundColor = [UIColor redColor];
+    [self.view addSubview:testView];
+#endif
 }
 
 - (void)viewWillLayoutSubviews
@@ -142,8 +169,19 @@ static void* observeContext = &observeContext;
         CGFloat height = alternateTabBar.intrinsicContentSize.height;
         tabBarHeightConstraint.constant = height;
 
+        CGFloat bottomSafeArea = self.view.safeAreaInsets.bottom;
+        if (IS_ABOVE_IOS26) {
+            if (bottomSafeArea == 0.) {
+                tabBarBottomConstraint.constant = 20.;
+                bottomSafeArea += 20.;
+            }
+            else {
+                tabBarBottomConstraint.constant = 0.;
+            }
+        }
+
         UIEdgeInsets insets = UIEdgeInsetsZero;
-        insets.bottom = alternateTabBar.frame.size.height - self.view.safeAreaInsets.bottom;
+        insets.bottom = height - bottomSafeArea;
         for (UIViewController *viewController in self.viewControllers) {
             viewController.additionalSafeAreaInsets = insets;
         }
